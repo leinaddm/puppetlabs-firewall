@@ -32,6 +32,7 @@ Puppet::Type.newtype(:firewall) do
   feature :log_level, "The ability to control the log level"
   feature :log_prefix, "The ability to add prefixes to log messages"
   feature :mark, "Set the netfilter mark value associated with the packet"
+  feature :tcp_flags, "The ability to match on particular TCP flag settings"
 
   # provider specific features
   feature :iptables, "The provider provides iptables features."
@@ -212,6 +213,22 @@ Puppet::Type.newtype(:firewall) do
     defaultto "tcp"
   end
 
+  # tcp-specific
+  newproperty(:tcp_flags, :required_features => :tcp_flags) do
+    desc <<-EOS
+      Match when the TCP flags are as specified.
+      Is a string with a list of comma-separated flag names for the mask,
+      then a space, then a comma-separated list of flags that should be set.
+      The flags are: SYN ACK FIN RST URG PSH ALL NONE
+      Note that you specify them in the order that iptables --list-rules
+      would list them to avoid having puppet think you changed the flags.
+      Example: FIN,SYN,RST,ACK SYN matches packets with the SYN bit set and the
+	       ACK,RST and FIN bits cleared.  Such packets are used to request
+               TCP  connection initiation.
+    EOS
+  end
+
+
   # Iptables specific
   newproperty(:chain, :required_features => :iptables) do
     desc <<-EOS
@@ -366,7 +383,18 @@ Puppet::Type.newtype(:firewall) do
   newproperty(:icmp, :required_features => :icmp_match) do
     desc <<-EOS
       When matching ICMP packets, this is the type of ICMP packet to match.
+
+      A value of "any" is not supported. To achieve this behaviour the
+      parameter should simply be omitted or undefined.
     EOS
+
+    validate do |value|
+      if value == "any"
+        raise ArgumentError,
+          "Value 'any' is not valid. This behaviour should be achieved " \
+          "by omitting or undefining the ICMP parameter."
+      end
+    end
 
     munge do |value|
       if value.kind_of?(String)
@@ -400,7 +428,7 @@ Puppet::Type.newtype(:firewall) do
     # States should always be sorted. This normalizes the resource states to
     # keep it consistent with the sorted result from iptables-save.
     def should=(values)
-      @should = super(values).sort
+      @should = super(values).sort_by {|sym| sym.to_s}
     end
 
     def is_to_s(value)
@@ -544,10 +572,10 @@ Puppet::Type.newtype(:firewall) do
 
     if value(:set_mark)
       unless value(:jump).to_s  =~ /MARK/ &&
-             value(:chain).to_s =~ /PREROUTING/ &&
+             value(:chain).to_s =~ /PREROUTING|OUTPUT/ &&
              value(:table).to_s =~ /mangle/
         self.fail "Parameter set_mark only applies to " \
-          "the PREROUTING chain of the mangle table and when jump => MARK"
+          "the PREROUTING or OUTPUT chain of the mangle table and when jump => MARK"
       end
     end
 

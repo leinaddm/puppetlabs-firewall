@@ -18,6 +18,7 @@ Puppet::Type.type(:firewall).provide :iptables, :parent => Puppet::Provider::Fir
   has_feature :log_level
   has_feature :log_prefix
   has_feature :mark
+  has_feature :tcp_flags
 
   commands :iptables => '/sbin/iptables'
   commands :iptables_save => '/sbin/iptables-save'
@@ -44,6 +45,7 @@ Puppet::Type.type(:firewall).provide :iptables, :parent => Puppet::Provider::Fir
     :state => "-m state --state",
     :sport => "-m multiport --sports",
     :table => "-t",
+    :tcp_flags => "-m tcp --tcp-flags",
     :todest => "--to-destination",
     :toports => "--to-ports",
     :tosource => "--to-source",
@@ -56,7 +58,7 @@ Puppet::Type.type(:firewall).provide :iptables, :parent => Puppet::Provider::Fir
   # changes between puppet runs, the changed rules will be re-applied again.
   # This order can be determined by going through iptables source code or just tweaking and trying manually
   @resource_list = [:table, :source, :destination, :iniface, :outiface,
-    :proto, :gid, :uid, :sport, :dport, :port, :name, :state, :icmp, :limit, :burst,
+    :proto, :tcp_flags, :gid, :uid, :sport, :dport, :port, :name, :state, :icmp, :limit, :burst,
     :jump, :todest, :tosource, :toports, :log_level, :log_prefix, :reject, :set_mark]
 
   def insert
@@ -96,7 +98,7 @@ Puppet::Type.type(:firewall).provide :iptables, :parent => Puppet::Provider::Fir
 
     # String#lines would be nice, but we need to support Ruby 1.8.5
     iptables_save.split("\n").each do |line|
-      unless line =~ /^\#\s+|^\:\S+|^COMMIT/
+      unless line =~ /^\#\s+|^\:\S+|^COMMIT|^FATAL/
         if line =~ /^\*/
           table = line.sub(/\*/, "")
         else
@@ -115,6 +117,10 @@ Puppet::Type.type(:firewall).provide :iptables, :parent => Puppet::Provider::Fir
     keys = []
     values = line.dup
 
+    # --tcp-flags takes two values; we cheat by adding " around it
+    # so it behaves like --comment
+    values = values.sub(/--tcp-flags (\S*) (\S*)/, '--tcp-flags "\1 \2"')
+
     @resource_list.reverse.each do |k|
       if values.slice!(/\s#{@resource_map[k]}/)
         keys << k
@@ -126,6 +132,11 @@ Puppet::Type.type(:firewall).provide :iptables, :parent => Puppet::Provider::Fir
     keys << :chain
 
     keys.zip(values.scan(/"[^"]*"|\S+/).reverse) { |f, v| hash[f] = v.gsub(/"/, '') }
+
+    # Normalise all rules to CIDR notation.
+    [:source, :destination].each do |prop|
+      hash[prop] = Puppet::Util::IPCidr.new(hash[prop]).cidr unless hash[prop].nil?
+    end
 
     [:dport, :sport, :port, :state].each do |prop|
       hash[prop] = hash[prop].split(',') if ! hash[prop].nil?
@@ -254,7 +265,14 @@ Puppet::Type.type(:firewall).provide :iptables, :parent => Puppet::Provider::Fir
         end
       end
 
-      if resource_value.is_a?(Array)
+      # our tcp_flags takes a single string with comma lists separated
+      # by space
+      # --tcp-flags expects two arguments
+      if res == :tcp_flags
+        one, two = resource_value.split(' ')
+        args << one
+        args << two
+      elsif resource_value.is_a?(Array)
         args << resource_value.join(',')
       else
         args << resource_value

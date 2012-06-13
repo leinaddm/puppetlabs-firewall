@@ -12,6 +12,8 @@ Puppet::Type.type(:firewall).provide :ip6tables, :parent => :iptables, :source =
   has_feature :reject_type
   has_feature :log_level
   has_feature :log_prefix
+  has_feature :mark
+  has_feature :tcp_flags
 
   commands :iptables      => '/sbin/ip6tables'
   commands :iptables_save => '/sbin/ip6tables-save'
@@ -24,7 +26,7 @@ Puppet::Type.type(:firewall).provide :ip6tables, :parent => :iptables, :source =
     :icmp => "-m icmp6 --icmpv6-type",
     :iniface => "-i",
     :jump => "-j",
-    :limit => "--limit",
+    :limit => "-m limit --limit",
     :log_level => "--log-level",
     :log_prefix => "--log-prefix",
     :name => "-m comment --comment",

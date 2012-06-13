@@ -57,6 +57,38 @@ ARGS_TO_HASH = {
       :action => nil,
     },
   },
+  'source_destination_ipv4_no_cidr' => {
+    :line => '-A INPUT -s 1.1.1.1 -d 2.2.2.2 -m comment --comment "000 source destination ipv4 no cidr"',
+    :table => 'filter',
+    :params => {
+      :source => '1.1.1.1/32',
+      :destination => '2.2.2.2/32',
+    },
+  },
+  'source_destination_ipv6_no_cidr' => {
+    :line => '-A INPUT -s 2001:db8:85a3::8a2e:370:7334 -d 2001:db8:85a3::8a2e:370:7334 -m comment --comment "000 source destination ipv6 no cidr"',
+    :table => 'filter',
+    :params => {
+      :source => '2001:db8:85a3::8a2e:370:7334/128',
+      :destination => '2001:db8:85a3::8a2e:370:7334/128',
+    },
+  },
+  'source_destination_ipv4_netmask' => {
+    :line => '-A INPUT -s 1.1.1.0/255.255.255.0 -d 2.2.0.0/255.255.0.0 -m comment --comment "000 source destination ipv4 netmask"',
+    :table => 'filter',
+    :params => {
+      :source => '1.1.1.0/24',
+      :destination => '2.2.0.0/16',
+    },
+  },
+  'source_destination_ipv6_netmask' => {
+    :line => '-A INPUT -s 2001:db8:1234::/ffff:ffff:ffff:0000:0000:0000:0000:0000 -d 2001:db8:4321::/ffff:ffff:ffff:0000:0000:0000:0000:0000 -m comment --comment "000 source destination ipv6 netmask"',
+    :table => 'filter',
+    :params => {
+      :source => '2001:db8:1234::/48',
+      :destination => '2001:db8:4321::/48',
+    },
+  },
   'dport_range_1' => {
     :line => '-A INPUT -m multiport --dports 1:1024 -m comment --comment "000 allow foo"',
     :table => 'filter',
@@ -85,6 +117,23 @@ ARGS_TO_HASH = {
       :sport => ["15","512-1024"],
     },
   },
+  'tcp_flags_1' => {
+    :line => '-A INPUT -p tcp -m tcp --tcp-flags SYN,RST,ACK,FIN SYN -m comment --comment "000 initiation"',
+    :table => 'filter',
+    :compare_all => true,
+    :chain => 'INPUT',
+    :proto => 'tcp',
+    :params => {
+      :chain => "INPUT",
+      :ensure => :present,
+      :line => '-A INPUT -p tcp -m tcp --tcp-flags SYN,RST,ACK,FIN SYN -m comment --comment "000 initiation"',
+      :name => "000 initiation",
+      :proto => "tcp",
+      :provider => "iptables",
+      :table => "filter",
+      :tcp_flags => "SYN,RST,ACK,FIN SYN",
+    },
+  },
   'state_returns_sorted_values' => {
     :line => '-A INPUT -m state --state INVALID,RELATED,ESTABLISHED',
     :table => 'filter',
@@ -94,10 +143,10 @@ ARGS_TO_HASH = {
     },
   },
   'comment_string_character_validation' => {
-    :line => '-A INPUT -s 192.168.0.1 -m comment --comment "000 allow from 192.168.0.1, please"',
+    :line => '-A INPUT -s 192.168.0.1/32 -m comment --comment "000 allow from 192.168.0.1, please"',
     :table => 'filter',
     :params => {
-      :source => '192.168.0.1',
+      :source => '192.168.0.1/32',
     },
   },
   'log_level_debug' => {
@@ -274,6 +323,60 @@ HASH_TO_ARGS = {
     :args => ["-t", :filter, "-p", :tcp, "-m", "comment", "--comment",
       "100 no action"],
   },
+  'zero_prefixlen_ipv4' => {
+    :params => {
+      :name => '100 zero prefix length ipv4',
+      :table => 'filter',
+      :source => '0.0.0.0/0',
+      :destination => '0.0.0.0/0',
+    },
+    :args => ['-t', :filter, '-p', :tcp, '-m', 'comment', '--comment', '100 zero prefix length ipv4'],
+  },
+  'zero_prefixlen_ipv6' => {
+    :params => {
+      :name => '100 zero prefix length ipv6',
+      :table => 'filter',
+      :source => '::/0',
+      :destination => '::/0',
+    },
+    :args => ['-t', :filter, '-p', :tcp, '-m', 'comment', '--comment', '100 zero prefix length ipv6'],
+  },
+  'source_destination_ipv4_no_cidr' => {
+    :params => {
+      :name => '000 source destination ipv4 no cidr',
+      :table => 'filter',
+      :source => '1.1.1.1',
+      :destination => '2.2.2.2',
+    },
+    :args => ['-t', :filter, '-s', '1.1.1.1/32', '-d', '2.2.2.2/32', '-p', :tcp, '-m', 'comment', '--comment', '000 source destination ipv4 no cidr'],
+  },
+ 'source_destination_ipv6_no_cidr' => {
+    :params => {
+      :name => '000 source destination ipv6 no cidr',
+      :table => 'filter',
+      :source => '2001:db8:1234::',
+      :destination => '2001:db8:4321::',
+    },
+    :args => ['-t', :filter, '-s', '2001:db8:1234::/128', '-d', '2001:db8:4321::/128', '-p', :tcp, '-m', 'comment', '--comment', '000 source destination ipv6 no cidr'],
+  },
+  'source_destination_ipv4_netmask' => {
+    :params => {
+      :name => '000 source destination ipv4 netmask',
+      :table => 'filter',
+      :source => '1.1.1.0/255.255.255.0',
+      :destination => '2.2.0.0/255.255.0.0',
+    },
+    :args => ['-t', :filter, '-s', '1.1.1.0/24', '-d', '2.2.0.0/16', '-p', :tcp, '-m', 'comment', '--comment', '000 source destination ipv4 netmask'],
+  },
+ 'source_destination_ipv6_netmask' => {
+    :params => {
+      :name => '000 source destination ipv6 netmask',
+      :table => 'filter',
+      :source => '2001:db8:1234::/ffff:ffff:ffff:0000:0000:0000:0000:0000',
+      :destination => '2001:db8:4321::/ffff:ffff:ffff:0000:0000:0000:0000:0000',
+    },
+    :args => ['-t', :filter, '-s', '2001:db8:1234::/48', '-d', '2001:db8:4321::/48', '-p', :tcp, '-m', 'comment', '--comment', '000 source destination ipv6 netmask'],
+  },
   'sport_range_1' => {
     :params => {
       :name => "100 sport range",
@@ -305,6 +408,15 @@ HASH_TO_ARGS = {
       :table => "filter",
     },
     :args => ["-t", :filter, "-p", :tcp, "-m", "multiport", "--dports", "15,512:1024", "-m", "comment", "--comment", "100 sport range"],
+  },
+  'tcp_flags_1' => {
+    :params => {
+      :name => "000 initiation",
+      :tcp_flags => "SYN,RST,ACK,FIN SYN",
+      :table => "filter",
+    },
+
+    :args => ["-t", :filter, "-p", :tcp, "-m", "tcp", "--tcp-flags", "SYN,RST,ACK,FIN", "SYN", "-m", "comment", "--comment", "000 initiation",]
   },
   'states_set_from_array' => {
     :params => {

@@ -116,6 +116,12 @@ describe firewall do
         @resource[addr] = '127.0.0.1'
         @resource[addr].should == '127.0.0.1/32'
       end
+      ['0.0.0.0/0', '::/0'].each do |prefix|
+        it "should be nil for zero prefix length address #{prefix}" do
+          @resource[addr] = prefix
+          @resource[addr].should == nil
+        end
+      end
     end
   end
 
@@ -232,7 +238,11 @@ describe firewall do
       @resource[:icmp].should == 9
     end
 
-    it 'should fail if icmp type is not recognized' do
+    it 'should fail if icmp type is "any"' do
+      lambda { @resource[:icmp] = 'any' }.should raise_error(Puppet::Error)
+    end
+
+    it 'should fail if icmp type cannot be mapped to a numeric' do
       lambda { @resource[:icmp] = 'foo' }.should raise_error(Puppet::Error)
     end
   end
